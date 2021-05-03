@@ -7,6 +7,7 @@ export interface AzureCosmosDbOptions extends CosmosClientOptions {
   retryAttempts?: number;
   retryDelay?: number;
   connectionName?: string;
+  enableCreateIfNotExists?: boolean;
 }
 
 export interface AzureCosmosDbOptionsFactory {

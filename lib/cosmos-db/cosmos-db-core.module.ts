@@ -1,4 +1,4 @@
-import { CosmosClient } from '@azure/cosmos';
+import { CosmosClient, DatabaseResponse } from '@azure/cosmos';
 import { DynamicModule, Global, Inject, Module, Provider, Type } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { defer } from 'rxjs';
@@ -6,7 +6,7 @@ import { COSMOS_DB_CONNECTION_NAME, COSMOS_DB_MODULE_OPTIONS } from './cosmos-db
 import {
   AzureCosmosDbModuleAsyncOptions,
   AzureCosmosDbOptions,
-  AzureCosmosDbOptionsFactory,
+  AzureCosmosDbOptionsFactory
 } from './cosmos-db.interface';
 import { getConnectionToken, handleRetry } from './cosmos-db.utils';
 
@@ -16,10 +16,10 @@ export class AzureCosmosDbCoreModule {
   constructor(
     @Inject(COSMOS_DB_CONNECTION_NAME) private readonly connectionName: string,
     private readonly moduleRef: ModuleRef,
-  ) {}
+  ) { }
 
   static forRoot(options: AzureCosmosDbOptions): DynamicModule {
-    const { dbName, retryAttempts, retryDelay, connectionName, ...cosmosDbOptions } = options;
+    const { dbName, retryAttempts, retryDelay, connectionName, enableCreateIfNotExists, ...cosmosDbOptions } = options;
 
     const cosmosConnectionName = getConnectionToken(connectionName);
 
@@ -33,9 +33,17 @@ export class AzureCosmosDbCoreModule {
       useFactory: async (): Promise<any> =>
         await defer(async () => {
           const client = new CosmosClient(cosmosDbOptions);
-          const dbResponse = await client.databases.createIfNotExists({
-            id: dbName,
-          });
+
+          let dbResponse: DatabaseResponse;
+
+          if (enableCreateIfNotExists) {
+            dbResponse = await client.databases.createIfNotExists({
+              id: dbName,
+            });
+          } else {
+            dbResponse = await client.database(dbName).read();
+          }
+
           return dbResponse.database;
         })
           .pipe(handleRetry(retryAttempts, retryDelay))
@@ -60,13 +68,21 @@ export class AzureCosmosDbCoreModule {
     const connectionProvider = {
       provide: cosmosConnectionName,
       useFactory: async (cosmosModuleOptions: AzureCosmosDbOptions): Promise<any> => {
-        const { dbName, retryAttempts, retryDelay, connectionName, ...cosmosOptions } = cosmosModuleOptions;
+        const { dbName, retryAttempts, retryDelay, connectionName, enableCreateIfNotExists, ...cosmosOptions } = cosmosModuleOptions;
 
         return await defer(async () => {
           const client = new CosmosClient(cosmosOptions);
-          const dbResponse = await client.databases.createIfNotExists({
-            id: dbName,
-          });
+
+          let dbResponse: DatabaseResponse;
+
+          if (enableCreateIfNotExists) {
+            dbResponse = await client.databases.createIfNotExists({
+              id: dbName,
+            });
+          } else {
+            dbResponse = await client.database(dbName).read();
+          }
+
           return dbResponse.database;
         })
           .pipe(handleRetry(retryAttempts, retryDelay))
